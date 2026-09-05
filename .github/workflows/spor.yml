@@ -30,5 +30,16 @@ jobs:
         env:
           STREAM_KEY: ${{ secrets.STREAM_KEY }}
           STREAM_URL: ${{ secrets.STREAM_URL }}
+          PYTHONUNBUFFERED: "1"
         run: |
-          python spor.py
+          # -u: Python çıktısını buffer'lamadan anlık yazdırır
+          # tee: hem ekrana basar hem de stream.log dosyasına kaydeder
+          python -u spor.py 2>&1 | tee stream.log
+
+      - name: Logu Artifact Olarak Kaydet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stream-log-${{ github.run_id }}
+          path: stream.log
+          retention-days: 7
