@@ -8,26 +8,34 @@ import re
 from collections import deque
 import requests
 
-# ===================== AYARLAR =====================
+# ===================== YAYIN AYARLARI =====================
 RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
 STREAM_KEY = os.getenv("STREAM_KEY") or "1b"
 RTMP_SERVER = f"{RTMP_URL}/{STREAM_KEY}"
 
-# Web sayfası veya doğrudan m3u8 adresi
-PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F13524210538e192d878d20"
-
-STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F2576216897d1c2b14af4e9"
+STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
 MAX_RETRY_DELAY_SECONDS = 60
 
-# ===================== LOGO AYARLARI =====================
+# ===================== LOGO HAREKET VE BOYUT AYARLARI =====================
 LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
-LOGO_MARGIN = 20   # kenarlardan boşluk (px)
-LOGO_WIDTH = 200   # logo genişliği (px), oran korunarak yükseklik otomatik ayarlanır
+
+# 1. LOGO BOYUTU
+LOGO_WIDTH = 200     # Piksel genişliği
+
+# 2. HAREKET / KONUM (1920x1080 ekrana göre):
+# LOGO_X: Sağa/Sola hareket (0 = En Sol, 1700 = En Sağ)
+# LOGO_Y: Yukarı/Aşağı hareket (0 = En Üst, 900 = En Alt)
+LOGO_X = 1680        # Sağa kaydırmak için artırın, sola kaydırmak için düşürün
+LOGO_Y = 30          # Aşağı kaydırmak için artırın, yukarı kaydırmak için düşürün
+
+# 3. SAYDAMLIK (0.1 = Yarı şeffaf, 1.0 = Tam görünür)
+LOGO_OPACITY = 0.9   
 
 
 def ensure_logo_downloaded():
-    """Logoyu bir kez indirip yerel dosyaya kaydeder. Zaten varsa tekrar indirmez."""
+    """Logoyu indirir ve kaydeder."""
     if os.path.exists(LOGO_PATH) and os.path.getsize(LOGO_PATH) > 0:
         return True
     try:
@@ -36,34 +44,27 @@ def ensure_logo_downloaded():
         resp.raise_for_status()
         with open(LOGO_PATH, "wb") as f:
             f.write(resp.content)
-        print(f"✅ Logo kaydedildi: {LOGO_PATH}")
+        print(f"✅ Logo indirildi: {LOGO_PATH}")
         return True
     except Exception as e:
-        print(f"⚠️ Logo indirilemedi, overlay olmadan devam edilecek: {e}")
+        print(f"⚠️ Logo indirilemedi: {e}")
         return False
 
 
 def extract_m3u8(page_url):
-    """Sayfa kaynağından asıl .m3u8 akış adresini ayıklar."""
+    """M3u8 linkini çözer."""
     if page_url.endswith(".m3u8"):
         return page_url
 
-    headers = {
-        "User-Agent": STREAM_USER_AGENT,
-        "Referer": page_url
-    }
+    headers = {"User-Agent": STREAM_USER_AGENT, "Referer": page_url}
     try:
         response = requests.get(page_url, headers=headers, timeout=10)
-        # HTML içindeki .m3u8 bağlantılarını ara
         matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', response.text)
         if matches:
-            found_url = matches[0]
-            print(f"✅ Çözümlenen Yayın Bağlantısı: {found_url}")
-            return found_url
+            return matches[0]
     except Exception as e:
-        print(f"⚠️ Link ayıklama hatası: {e}")
+        print(f"⚠️ Link çıkarma hatası: {e}")
 
-    print("⚠️ Otomatik m3u8 bulunamadı, doğrudan verilen URL kullanılacak.")
     return page_url
 
 
@@ -72,26 +73,21 @@ def start_live_relay():
     logo_available = ensure_logo_downloaded()
 
     while True:
-        print("\n🔍 Yayın adresi kontrol ediliyor...")
         stream_target = extract_m3u8(PAGE_URL)
-
-        # Sunucu engeline takılmamak için Header yapılandırması
         headers_arg = f"User-Agent: {STREAM_USER_AGENT}\r\nReferer: {PAGE_URL}\r\n"
 
-        print("=" * 60)
-        print("📡 Canlı yayın aktarımı başlatılıyor...")
-        print(f"🎯 Kaynak : {stream_target}")
-        print(f"🎯 Hedef  : {RTMP_SERVER}")
-        print(f"🖼️ Logo   : {'Aktif' if logo_available else 'Yok (indirilemedi)'}")
-        print("=" * 60)
+        print("\n" + "=" * 50)
+        print(f"📡 Yayın Başlatılıyor...")
+        print(f"📍 Logo Konumu: X={LOGO_X}px (Yatay), Y={LOGO_Y}px (Dikey)")
+        print("=" * 50)
 
-        # Video işleme zinciri: scale -> pad -> (varsa) logo overlay -> fps
+        # Video Filtresi (Sadece X ve Y pikselleriyle konumlandırma)
         if logo_available:
             filter_complex = (
                 '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,'
                 'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[bg];'
-                f'[1:v]scale={LOGO_WIDTH}:-1[logo];'
-                f'[bg][logo]overlay=W-w-{LOGO_MARGIN}:{LOGO_MARGIN},fps=25[v]'
+                f'[1:v]scale=60:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];'
+                f'[bg][logo]overlay=20:20,fps=25[v]'
             )
         else:
             filter_complex = (
@@ -99,10 +95,8 @@ def start_live_relay():
                 'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[v]'
             )
 
-        command = ['ffmpeg']
-
-        # Ana yayın girişi
-        command += [
+        command = [
+            'ffmpeg',
             '-headers', headers_arg,
             '-reconnect', '1',
             '-reconnect_streamed', '1',
@@ -110,7 +104,6 @@ def start_live_relay():
             '-i', stream_target,
         ]
 
-        # Logo girişi (varsa) — sabit görsel olduğu için -loop 1 kullanılıyor
         if logo_available:
             command += ['-loop', '1', '-i', LOGO_PATH]
 
@@ -134,13 +127,9 @@ def start_live_relay():
         ]
 
         start_time = time.time()
-        stderr_tail = deque(maxlen=40)
+        stderr_tail = deque(maxlen=30)
 
-        process = subprocess.Popen(
-            command,
-            stderr=subprocess.PIPE,
-            universal_newlines=True
-        )
+        process = subprocess.Popen(command, stderr=subprocess.PIPE, universal_newlines=True)
 
         while True:
             line = process.stderr.readline()
@@ -152,21 +141,13 @@ def start_live_relay():
         elapsed = time.time() - start_time
 
         if process.returncode == 0:
-            print("ℹ️ FFmpeg normal şekilde sona erdi, tekrar başlatılıyor...")
             consecutive_failures = 0
         else:
-            print(f"⚠️ Yayın koptu (Return Code: {process.returncode}).")
-            if stderr_tail:
-                print("🧾 FFmpeg son log satırları:")
-                for tail_line in stderr_tail:
-                    print(f"   {tail_line}")
-            if elapsed < 20:
-                consecutive_failures += 1
-            else:
-                consecutive_failures = 0
+            print(f"⚠️ Yayın koptu (Kod: {process.returncode}).")
+            consecutive_failures = consecutive_failures + 1 if elapsed < 20 else 0
 
         retry_delay = min(5 * (2 ** consecutive_failures), MAX_RETRY_DELAY_SECONDS) if consecutive_failures else 5
-        print(f"⚠️ {retry_delay} saniye sonra tekrar bağlanılıyor...")
+        print(f"🔄 {retry_delay} saniye sonra tekrar deneniyor...")
         time.sleep(retry_delay)
 
 
