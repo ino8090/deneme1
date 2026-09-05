@@ -24,11 +24,9 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 # 1. LOGO BOYUTU
 LOGO_WIDTH = 200     # Piksel genişliği
 
-# 2. HAREKET / KONUM (1920x1080 ekrana göre):
-# LOGO_X: Sağa/Sola hareket (0 = En Sol, 1700 = En Sağ)
-# LOGO_Y: Yukarı/Aşağı hareket (0 = En Üst, 900 = En Alt)
-LOGO_X = 1680        # Sağa kaydırmak için artırın, sola kaydırmak için düşürün
-LOGO_Y = 30          # Aşağı kaydırmak için artırın, yukarı kaydırmak için düşürün
+# 2. HAREKET / KONUM (1920x1080 ekrana göre)
+LOGO_X = 1680        # Sağa/Sola hareket (0 = En Sol, 1700 = En Sağ)
+LOGO_Y = 30          # Yukarı/Aşağı hareket (0 = En Üst, 900 = En Alt)
 
 # 3. SAYDAMLIK (0.1 = Yarı şeffaf, 1.0 = Tam görünür)
 LOGO_OPACITY = 0.9   
@@ -74,34 +72,38 @@ def start_live_relay():
 
     while True:
         stream_target = extract_m3u8(PAGE_URL)
-        headers_arg = f"User-Agent: {STREAM_USER_AGENT}\r\nReferer: {PAGE_URL}\r\n"
 
         print("\n" + "=" * 50)
         print(f"📡 Yayın Başlatılıyor...")
-        print(f"📍 Logo Konumu: X={LOGO_X}px (Yatay), Y={LOGO_Y}px (Dikey)")
+        print(f"🎯 Hedef Stream: {stream_target}")
+        print(f"📍 Logo Konumu: X={LOGO_X}px, Y={LOGO_Y}px")
         print("=" * 50)
 
-        # Video Filtresi (Sadece X ve Y pikselleriyle konumlandırma)
+        # FFmpeg Filtre Zinciri
         if logo_available:
             filter_complex = (
-                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,'
-                'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[bg];'
-                f'[1:v]scale=60:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];'
-                f'[bg][logo]overlay=20:20,fps=25[v]'
+                f"[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
+                f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[bg];"
+                f"[1:v]scale=50:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];"
+                f"[bg][logo]overlay=20:20,fps=25[v]"
             )
         else:
             filter_complex = (
-                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,'
-                'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[v]'
+                "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
+                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[v]"
             )
 
+        # FFmpeg Komutu (Parametre sırası düzeltildi)
         command = [
             'ffmpeg',
-            '-headers', headers_arg,
+            '-hide_banner',
+            '-loglevel', 'error',
+            '-user_agent', STREAM_USER_AGENT,
+            '-headers', f'Referer: {PAGE_URL}\r\n',
             '-reconnect', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '5',
-            '-i', stream_target,
+            '-i', stream_target
         ]
 
         if logo_available:
@@ -129,7 +131,12 @@ def start_live_relay():
         start_time = time.time()
         stderr_tail = deque(maxlen=30)
 
-        process = subprocess.Popen(command, stderr=subprocess.PIPE, universal_newlines=True)
+        process = subprocess.Popen(
+            command,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            universal_newlines=True
+        )
 
         while True:
             line = process.stderr.readline()
@@ -141,9 +148,15 @@ def start_live_relay():
         elapsed = time.time() - start_time
 
         if process.returncode == 0:
+            print("ℹ️ Yayın tamamlandı/durdu.")
             consecutive_failures = 0
         else:
             print(f"⚠️ Yayın koptu (Kod: {process.returncode}).")
+            if stderr_tail:
+                print("🧾 Hata Detayı:")
+                for tail_line in stderr_tail:
+                    print(f"   {tail_line}")
+
             consecutive_failures = consecutive_failures + 1 if elapsed < 20 else 0
 
         retry_delay = min(5 * (2 ** consecutive_failures), MAX_RETRY_DELAY_SECONDS) if consecutive_failures else 5
