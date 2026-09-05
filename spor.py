@@ -95,6 +95,9 @@ def start_live_relay():
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
+            '-probesize', '32k',           # Akışı analiz süresini düşürür (Hızlı başlatma)
+            '-analyzeduration', '0',        # Akış analizini bekletmeden anında başlatır
+            '-fflags', 'nobuffer+fastseek', # Tampon bellek gecikmesini sıfırlar
             '-user_agent', STREAM_USER_AGENT,
             '-headers', 'Referer: https://kool.to/\r\n',
             '-reconnect', '1',
@@ -111,7 +114,8 @@ def start_live_relay():
             '-map', '[v]',
             '-map', '0:a?',
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',        # 'veryfast' yerine 'ultrafast' kullanılarak FPS hemen yakalanır
+            '-tune', 'zerolatency',         # Canlı yayın gecikmesini sıfırlar
             '-pix_fmt', 'yuv420p',
             '-r', '25',
             '-b:v', '3500k',
