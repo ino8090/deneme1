@@ -22,7 +22,7 @@ LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
 LOGO_WIDTH = 211     # Piksel genişliği
-LOGO_X = 1618       # Konum X
+LOGO_X = 1614       # Konum X
 LOGO_Y = 30          # Konum Y
 LOGO_OPACITY = 1.0   # Saydamlık
 
