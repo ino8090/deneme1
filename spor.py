@@ -13,7 +13,7 @@ RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
 STREAM_KEY = os.getenv("STREAM_KEY") or "b1"
 RTMP_SERVER = f"{RTMP_URL}/{STREAM_KEY}"
 
-PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F24034250314fd9aa349685"
+PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F5934938605e361d7e0ff0"
 STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
 MAX_RETRY_DELAY_SECONDS = 60
 
@@ -22,7 +22,7 @@ LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
 LOGO_WIDTH = 213     # Piksel genişliği
-LOGO_X = 1614       # Konum X
+LOGO_X = 1620       # Konum X
 LOGO_Y = 30          # Konum Y
 LOGO_OPACITY = 1.0   # Saydamlık
 
