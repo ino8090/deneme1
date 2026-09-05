@@ -17,19 +17,14 @@ PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers
 STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
 MAX_RETRY_DELAY_SECONDS = 60
 
-# ===================== LOGO HAREKET VE BOYUT AYARLARI =====================
+# ===================== LOGO AYARLARI =====================
 LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
-# 1. LOGO BOYUTU
 LOGO_WIDTH = 200     # Piksel genişliği
-
-# 2. HAREKET / KONUM (1920x1080 ekrana göre)
-LOGO_X = 1680        # Sağa/Sola hareket (0 = En Sol, 1700 = En Sağ)
-LOGO_Y = 30          # Yukarı/Aşağı hareket (0 = En Üst, 900 = En Alt)
-
-# 3. SAYDAMLIK (0.1 = Yarı şeffaf, 1.0 = Tam görünür)
-LOGO_OPACITY = 0.9   
+LOGO_X = 1680        # Konum X
+LOGO_Y = 30          # Konum Y
+LOGO_OPACITY = 0.9   # Saydamlık
 
 
 def ensure_logo_downloaded():
@@ -54,7 +49,10 @@ def extract_m3u8(page_url):
     if page_url.endswith(".m3u8"):
         return page_url
 
-    headers = {"User-Agent": STREAM_USER_AGENT, "Referer": page_url}
+    headers = {
+        "User-Agent": STREAM_USER_AGENT, 
+        "Referer": "https://kool.to/"
+    }
     try:
         response = requests.get(page_url, headers=headers, timeout=10)
         matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', response.text)
@@ -76,16 +74,16 @@ def start_live_relay():
         print("\n" + "=" * 50)
         print(f"📡 Yayın Başlatılıyor...")
         print(f"🎯 Hedef Stream: {stream_target}")
-        print(f"📍 Logo Konumu: X={LOGO_X}px, Y={LOGO_Y}px")
+        print(f"📍 Logo Konumu: X={LOGO_X}px, Y={LOGO_Y}px | Genişlik: {LOGO_WIDTH}px")
         print("=" * 50)
 
-        # FFmpeg Filtre Zinciri
+        # FFmpeg Filtre Zinciri (Değişkenler dinamik bağlandı)
         if logo_available:
             filter_complex = (
                 f"[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
                 f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[bg];"
-                f"[1:v]scale=50:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];"
-                f"[bg][logo]overlay=20:20,fps=25[v]"
+                f"[1:v]scale={LOGO_WIDTH}:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];"
+                f"[bg][logo]overlay={LOGO_X}:{LOGO_Y},fps=25[v]"
             )
         else:
             filter_complex = (
@@ -93,13 +91,12 @@ def start_live_relay():
                 "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[v]"
             )
 
-        # FFmpeg Komutu (Parametre sırası düzeltildi)
         command = [
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
             '-user_agent', STREAM_USER_AGENT,
-            '-headers', f'Referer: {PAGE_URL}\r\n',
+            '-headers', 'Referer: https://kool.to/\r\n',
             '-reconnect', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '5',
