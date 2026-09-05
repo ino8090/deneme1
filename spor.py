@@ -21,10 +21,10 @@ MAX_RETRY_DELAY_SECONDS = 60
 LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
-LOGO_WIDTH = 200     # Piksel genişliği
+LOGO_WIDTH = 211     # Piksel genişliği
 LOGO_X = 1620       # Konum X
 LOGO_Y = 30          # Konum Y
-LOGO_OPACITY = 0.9   # Saydamlık
+LOGO_OPACITY = 1.0   # Saydamlık
 
 
 def ensure_logo_downloaded():
