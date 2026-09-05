@@ -13,7 +13,7 @@ RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
 STREAM_KEY = os.getenv("STREAM_KEY") or "b1"
 RTMP_SERVER = f"{RTMP_URL}/{STREAM_KEY}"
 
-PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F2576216897d1c2b14af4e9"
+PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F24034250314fd9aa349685"
 STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
 MAX_RETRY_DELAY_SECONDS = 60
 
