@@ -1,35 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
-
-# Renkli çıktı için
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}  SSH101.com Yayın Kurulum Scripti${NC}"
-echo -e "${BLUE}========================================${NC}"
-
-# 1. Depoları güncelle
-echo -e "${YELLOW}[1/5] Depolar güncelleniyor...${NC}"
-pkg update -y && pkg upgrade -y
-
-# 2. Gerekli paketleri kur
-echo -e "${YELLOW}[2/5] Gerekli paketler kuruluyor...${NC}"
-pkg install -y python ffmpeg
-
-# 3. Termux storage izni
-echo -e "${YELLOW}[3/5] Depolama izni isteniyor...${NC}"
-termux-setup-storage
-
-# 4. Yayın scriptini oluştur
-echo -e "${YELLOW}[4/5] Yayın scripti oluşturuluyor...${NC}"
-cat > ~/ssh101_yayin.py << 'EOF'
 import subprocess
 import sys
 import time
-import threading
 
 # ===================== SSH101.com AYARLARI =====================
 RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
@@ -86,19 +57,10 @@ try:
     while True:
         time.sleep(60)
         if proc.poll() is not None:
-            print("⚠️ Yayın durduruldu, yeniden başlatılıyor...")
+            print("⚠️ Yayın durdu, yeniden başlatılıyor...")
             proc = subprocess.Popen(command)
             
 except KeyboardInterrupt:
     print("\n\n⛔ Yayın durduruluyor...")
     proc.terminate()
     print("✅ Yayın sonlandırıldı.")
-EOF
-
-# 5. Çalıştır
-echo -e "${YELLOW}[5/5] Yayın başlatılıyor...${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}✨ Kurulum tamam! Yayın başlıyor...${NC}"
-echo -e "${BLUE}========================================${NC}\n"
-
-python ~/ssh101_yayin.py
