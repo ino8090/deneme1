@@ -15,7 +15,6 @@ RTMP_SERVER = f"{RTMP_URL}/{STREAM_KEY}"
 
 PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F5934938605e361d7e0ff0"
 STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
-MAX_RETRY_DELAY_SECONDS = 60
 
 # ===================== LOGO AYARLARI =====================
 LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
@@ -65,7 +64,6 @@ def extract_m3u8(page_url):
 
 
 def start_live_relay():
-    consecutive_failures = 0
     logo_available = ensure_logo_downloaded()
 
     while True:
@@ -73,11 +71,11 @@ def start_live_relay():
 
         print("\n" + "=" * 50)
         print(f"📡 Yayın Başlatılıyor...")
-        print(f"🎯 Hedef Stream: {stream_target}")
+        print(f"🎯 Kaynak Stream: {stream_target}")
         print(f"📍 Logo Konumu: X={LOGO_X}px, Y={LOGO_Y}px | Genişlik: {LOGO_WIDTH}px")
         print("=" * 50)
 
-        # FFmpeg Filtre Zinciri (Değişkenler dinamik bağlandı)
+        # FFmpeg Filtre Zinciri
         if logo_available:
             filter_complex = (
                 f"[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
@@ -95,11 +93,10 @@ def start_live_relay():
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
-            '-probesize', '32k',           # Akışı analiz süresini düşürür (Hızlı başlatma)
-            '-analyzeduration', '0',        # Akış analizini bekletmeden anında başlatır
-            '-fflags', 'nobuffer+fastseek', # Tampon bellek gecikmesini sıfırlar
             '-user_agent', STREAM_USER_AGENT,
             '-headers', 'Referer: https://kool.to/\r\n',
+            
+            # Kaynak (m3u8) Kararlılık Ayarları
             '-reconnect', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '5',
@@ -113,24 +110,30 @@ def start_live_relay():
             '-filter_complex', filter_complex,
             '-map', '[v]',
             '-map', '0:a?',
+            
+            # Video Kodlama
             '-c:v', 'libx264',
-            '-preset', 'ultrafast',        # 'veryfast' yerine 'ultrafast' kullanılarak FPS hemen yakalanır
-            '-tune', 'zerolatency',         # Canlı yayın gecikmesini sıfırlar
+            '-preset', 'superfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '3500k',
-            '-maxrate', '3500k',
-            '-bufsize', '4000k',
-            '-g', '60',
+            '-b:v', '3000k',
+            '-maxrate', '3000k',
+            '-bufsize', '6000k',
+            '-g', '50',  # 2 saniyede bir Keyframe (RTMP kopmalarını engeller)
+            
+            # Ses Kodlama
             '-c:a', 'aac',
             '-b:a', '128k',
             '-ar', '44100',
+            
+            # RTMP Sunucu Kopma Engelleyici Bayraklar
+            '-flvflags', 'no_duration_filesize',
+            '-rtmp_live', 'live',
             '-f', 'flv',
             RTMP_SERVER
         ]
 
-        start_time = time.time()
-        stderr_tail = deque(maxlen=30)
+        stderr_tail = deque(maxlen=20)
 
         process = subprocess.Popen(
             command,
@@ -146,23 +149,15 @@ def start_live_relay():
             if line:
                 stderr_tail.append(line.rstrip())
 
-        elapsed = time.time() - start_time
+        print(f"⚠️ Yayın koptu/sunucu bağlantıyı kesti (Return Code: {process.returncode}).")
+        if stderr_tail:
+            print("🧾 Son Loglar:")
+            for tail_line in stderr_tail:
+                print(f"   {tail_line}")
 
-        if process.returncode == 0:
-            print("ℹ️ Yayın tamamlandı/durdu.")
-            consecutive_failures = 0
-        else:
-            print(f"⚠️ Yayın koptu (Kod: {process.returncode}).")
-            if stderr_tail:
-                print("🧾 Hata Detayı:")
-                for tail_line in stderr_tail:
-                    print(f"   {tail_line}")
-
-            consecutive_failures = consecutive_failures + 1 if elapsed < 20 else 0
-
-        retry_delay = min(5 * (2 ** consecutive_failures), MAX_RETRY_DELAY_SECONDS) if consecutive_failures else 5
-        print(f"🔄 {retry_delay} saniye sonra tekrar deneniyor...")
-        time.sleep(retry_delay)
+        # Beklemeden hızlıca tekrar bağlan (5 Saniye)
+        print("🔄 5 saniye içinde tekrar bağlanılıyor...")
+        time.sleep(5)
 
 
 if __name__ == "__main__":
