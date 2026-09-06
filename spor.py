@@ -1,164 +1,104 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#!/data/data/com.termux/files/usr/bin/bash
 
+# Renkli çıktı için
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}========================================${NC}"
+echo -e "${GREEN}  SSH101.com Yayın Kurulum Scripti${NC}"
+echo -e "${BLUE}========================================${NC}"
+
+# 1. Depoları güncelle
+echo -e "${YELLOW}[1/5] Depolar güncelleniyor...${NC}"
+pkg update -y && pkg upgrade -y
+
+# 2. Gerekli paketleri kur
+echo -e "${YELLOW}[2/5] Gerekli paketler kuruluyor...${NC}"
+pkg install -y python ffmpeg
+
+# 3. Termux storage izni
+echo -e "${YELLOW}[3/5] Depolama izni isteniyor...${NC}"
+termux-setup-storage
+
+# 4. Yayın scriptini oluştur
+echo -e "${YELLOW}[4/5] Yayın scripti oluşturuluyor...${NC}"
+cat > ~/ssh101_yayin.py << 'EOF'
 import subprocess
+import sys
 import time
-import os
-import re
-from collections import deque
-import requests
+import threading
+
+# ===================== SSH101.com AYARLARI =====================
+RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
+STREAM_KEY = "b.1"
+rtmp_server = f"{RTMP_URL}/{STREAM_KEY}"
 
 # ===================== YAYIN AYARLARI =====================
-RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
-STREAM_KEY = os.getenv("STREAM_KEY") or "b1"
-RTMP_SERVER = f"{RTMP_URL}/{STREAM_KEY}"
+VIDEO_URL = "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F24034250314fd9aa349685"
+LOGO_URL = "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 
-PAGE_URL = os.getenv("STREAM_URL") or "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F5934938605e361d7e0ff0"
-STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
+print("=" * 50)
+print("📺 SSH101.com Yayın Başlatılıyor")
+print("=" * 50)
+print(f"🎬 Video: {VIDEO_URL}")
+print(f"🎨 Logo: {LOGO_URL}")
+print(f"🔑 Stream Key: {STREAM_KEY}")
+print(f"📡 RTMP: {rtmp_server}")
+print(f"🌐 İzleme: https://ssh101.com/live/{STREAM_KEY}")
+print(f"📱 HLS: https://lbgo.bozztv.com/ssh101/ssh101/{STREAM_KEY}/playlist.m3u8")
+print("=" * 50)
 
-# ===================== LOGO AYARLARI =====================
-LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
+# FFmpeg komutu - Logo SAĞ ÜSTTE
+command = [
+    'ffmpeg',
+    '-re',
+    '-stream_loop', '-1',
+    '-i', VIDEO_URL,
+    '-i', LOGO_URL,
+    '-filter_complex',
+    '[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black[v0];'
+    '[1:v]scale=-1:90[logo];'
+    '[v0][logo]overlay=W-w-10:10[v1];'
+    '[v1]drawtext=text=:fontcolor=white:fontsize=24:box=1:boxcolor=black@0.6:boxborderw=5:x=(w-text_w)/2:y=h-text_h-20[v]',
+    '-map', '[v]',
+    '-map', '0:a?',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-b:v', '4000k',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-f', 'flv',
+    rtmp_server
+]
 
-LOGO_WIDTH = 213     # Piksel genişliği
-LOGO_X = 1630      # Konum X
-LOGO_Y = 30          # Konum Y
-LOGO_OPACITY = 1.0   # Saydamlık
+print("\n🎥 SSH101.com yayını başlatılıyor...")
+print("🖼️  Logo: Sağ üst")
+print("📝 Alt yazı: t.me/digitaltivi")
+print("⏸️  Durdurmak için: Ctrl + C\n")
 
-
-def ensure_logo_downloaded():
-    """Logoyu indirir ve kaydeder."""
-    if os.path.exists(LOGO_PATH) and os.path.getsize(LOGO_PATH) > 0:
-        return True
-    try:
-        print(f"⬇️ Logo indiriliyor: {LOGO_URL}")
-        resp = requests.get(LOGO_URL, headers={"User-Agent": STREAM_USER_AGENT}, timeout=15)
-        resp.raise_for_status()
-        with open(LOGO_PATH, "wb") as f:
-            f.write(resp.content)
-        print(f"✅ Logo indirildi: {LOGO_PATH}")
-        return True
-    except Exception as e:
-        print(f"⚠️ Logo indirilemedi: {e}")
-        return False
-
-
-def extract_m3u8(page_url):
-    """M3u8 linkini çözer."""
-    if page_url.endswith(".m3u8"):
-        return page_url
-
-    headers = {
-        "User-Agent": STREAM_USER_AGENT, 
-        "Referer": "https://kool.to/"
-    }
-    try:
-        response = requests.get(page_url, headers=headers, timeout=10)
-        matches = re.findall(r'https?://[^\s\'"]+\.m3u8[^\s\'"]*', response.text)
-        if matches:
-            return matches[0]
-    except Exception as e:
-        print(f"⚠️ Link çıkarma hatası: {e}")
-
-    return page_url
-
-
-def start_live_relay():
-    logo_available = ensure_logo_downloaded()
-
+try:
+    proc = subprocess.Popen(command)
+    
+    # Yayını canlı tut
     while True:
-        stream_target = extract_m3u8(PAGE_URL)
-
-        print("\n" + "=" * 50)
-        print(f"📡 Yayın Başlatılıyor...")
-        print(f"🎯 Kaynak Stream: {stream_target}")
-        print(f"📍 Logo Konumu: X={LOGO_X}px, Y={LOGO_Y}px | Genişlik: {LOGO_WIDTH}px")
-        print("=" * 50)
-
-        # FFmpeg Filtre Zinciri
-        if logo_available:
-            filter_complex = (
-                f"[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
-                f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[bg];"
-                f"[1:v]scale={LOGO_WIDTH}:-1,format=rgba,colorchannelmixer=aa={LOGO_OPACITY}[logo];"
-                f"[bg][logo]overlay={LOGO_X}:{LOGO_Y},fps=25[v]"
-            )
-        else:
-            filter_complex = (
-                "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
-                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[v]"
-            )
-
-        command = [
-            'ffmpeg',
-            '-hide_banner',
-            '-loglevel', 'error',
-            '-user_agent', STREAM_USER_AGENT,
-            '-headers', 'Referer: https://kool.to/\r\n',
+        time.sleep(60)
+        if proc.poll() is not None:
+            print("⚠️ Yayın durduruldu, yeniden başlatılıyor...")
+            proc = subprocess.Popen(command)
             
-            # Kaynak (m3u8) Kararlılık Ayarları
-            '-reconnect', '1',
-            '-reconnect_streamed', '1',
-            '-reconnect_delay_max', '5',
-            '-i', stream_target
-        ]
+except KeyboardInterrupt:
+    print("\n\n⛔ Yayın durduruluyor...")
+    proc.terminate()
+    print("✅ Yayın sonlandırıldı.")
+EOF
 
-        if logo_available:
-            command += ['-loop', '1', '-i', LOGO_PATH]
+# 5. Çalıştır
+echo -e "${YELLOW}[5/5] Yayın başlatılıyor...${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo -e "${GREEN}✨ Kurulum tamam! Yayın başlıyor...${NC}"
+echo -e "${BLUE}========================================${NC}\n"
 
-        command += [
-            '-filter_complex', filter_complex,
-            '-map', '[v]',
-            '-map', '0:a?',
-            
-            # Video Kodlama
-            '-c:v', 'libx264',
-            '-preset', 'superfast',
-            '-pix_fmt', 'yuv420p',
-            '-r', '25',
-            '-b:v', '3000k',
-            '-maxrate', '3000k',
-            '-bufsize', '6000k',
-            '-g', '50',  # 2 saniyede bir Keyframe (RTMP kopmalarını engeller)
-            
-            # Ses Kodlama
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-ar', '44100',
-            
-            # RTMP Sunucu Kopma Engelleyici Bayraklar
-            '-flvflags', 'no_duration_filesize',
-            '-rtmp_live', 'live',
-            '-f', 'flv',
-            RTMP_SERVER
-        ]
-
-        stderr_tail = deque(maxlen=20)
-
-        process = subprocess.Popen(
-            command,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            universal_newlines=True
-        )
-
-        while True:
-            line = process.stderr.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                stderr_tail.append(line.rstrip())
-
-        print(f"⚠️ Yayın koptu/sunucu bağlantıyı kesti (Return Code: {process.returncode}).")
-        if stderr_tail:
-            print("🧾 Son Loglar:")
-            for tail_line in stderr_tail:
-                print(f"   {tail_line}")
-
-        # Beklemeden hızlıca tekrar bağlan (5 Saniye)
-        print("🔄 5 saniye içinde tekrar bağlanılıyor...")
-        time.sleep(5)
-
-
-if __name__ == "__main__":
-    start_live_relay()
+python ~/ssh101_yayin.py
