@@ -22,12 +22,16 @@ print(f"🌐 İzleme: https://ssh101.com/live/{STREAM_KEY}")
 print(f"📱 HLS: https://lbgo.bozztv.com/ssh101/ssh101/{STREAM_KEY}/playlist.m3u8")
 print("=" * 50)
 
-# FFmpeg komutu - Logo SAĞ ÜSTTE
+# FFmpeg komutu - Bağlantı Donma Korumalı & Logo SAĞ ÜSTTE
 command = [
     'ffmpeg',
+    '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    '-rw_timeout', '15000000',
+    '-thread_queue_size', '1024',
     '-re',
     '-stream_loop', '-1',
     '-i', VIDEO_URL,
+    '-thread_queue_size', '1024',
     '-i', LOGO_URL,
     '-filter_complex',
     '[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black[v0];'
@@ -39,6 +43,8 @@ command = [
     '-c:v', 'libx264',
     '-preset', 'veryfast',
     '-b:v', '4000k',
+    '-maxrate', '4000k',
+    '-bufsize', '8000k',
     '-c:a', 'aac',
     '-b:a', '128k',
     '-f', 'flv',
