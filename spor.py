@@ -36,7 +36,7 @@ command = [
     '-filter_complex',
     '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[v0];'
     '[1:v]scale=-1:130[logo];'
-    '[v0][logo]overlay=W-w-70:3[v1];'
+    '[v0][logo]overlay=W-w-65:33[v1];'
     '[v1]drawtext=text=:fontcolor=white:fontsize=28:box=1:boxcolor=black@0.6:boxborderw=5:x=(w-text_w)/2:y=h-text_h-20[v]',
     '-map', '[v]',
     '-map', '0:a?',
