@@ -21,7 +21,7 @@ LOGO_URL = os.getenv("LOGO_URL") or "https://raw.githubusercontent.com/ino8090/0
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
 
 LOGO_WIDTH = 213     # Piksel genişliği
-LOGO_X = 1620       # Konum X
+LOGO_X = 1640       # Konum X
 LOGO_Y = 30          # Konum Y
 LOGO_OPACITY = 1.0   # Saydamlık
 
@@ -111,15 +111,15 @@ def start_live_relay():
             '-map', '[v]',
             '-map', '0:a?',
             
-            # Video Kodlama (Bitrate: 2000k olarak ayarlandı)
+            # Video Kodlama
             '-c:v', 'libx264',
             '-preset', 'superfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '2000k',
-            '-maxrate', '2000k',
-            '-bufsize', '4000k',
-            '-g', '50',
+            '-b:v', '3000k',
+            '-maxrate', '3000k',
+            '-bufsize', '6000k',
+            '-g', '50',  # 2 saniyede bir Keyframe (RTMP kopmalarını engeller)
             
             # Ses Kodlama
             '-c:a', 'aac',
