@@ -8,7 +8,7 @@ STREAM_KEY = "b.1"
 rtmp_server = f"{RTMP_URL}/{STREAM_KEY}"
 
 # ===================== YAYIN AYARLARI =====================
-VIDEO_URL = "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F24034250314fd9aa349685"
+VIDEO_URL = "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F267105889a25a483e5e80"
 LOGO_URL = "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 
 print("=" * 50)
