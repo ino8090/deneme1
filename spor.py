@@ -22,7 +22,7 @@ print(f"🌐 İzleme: https://ssh101.com/live/{STREAM_KEY}")
 print(f"📱 HLS: https://lbgo.bozztv.com/ssh101/ssh101/{STREAM_KEY}/playlist.m3u8")
 print("=" * 50)
 
-# FFmpeg komutu - Bağlantı Donma Korumalı & Logo SAĞ ÜSTTE
+# FFmpeg komutu - 1080p 25 FPS & 3500 kbps Bitrate (KMPS)
 command = [
     'ffmpeg',
     '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -34,17 +34,18 @@ command = [
     '-thread_queue_size', '1024',
     '-i', LOGO_URL,
     '-filter_complex',
-    '[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black[v0];'
-    '[1:v]scale=-1:90[logo];'
-    '[v0][logo]overlay=W-w-10:10[v1];'
-    '[v1]drawtext=text=:fontcolor=white:fontsize=24:box=1:boxcolor=black@0.6:boxborderw=5:x=(w-text_w)/2:y=h-text_h-20[v]',
+    '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[v0];'
+    '[1:v]scale=-1:120[logo];'
+    '[v0][logo]overlay=W-w-25:25[v1];'
+    '[v1]drawtext=text=:fontcolor=white:fontsize=28:box=1:boxcolor=black@0.6:boxborderw=5:x=(w-text_w)/2:y=h-text_h-20[v]',
     '-map', '[v]',
     '-map', '0:a?',
     '-c:v', 'libx264',
+    '-r', '25',
     '-preset', 'veryfast',
-    '-b:v', '4000k',
-    '-maxrate', '4000k',
-    '-bufsize', '8000k',
+    '-b:v', '3500k',
+    '-maxrate', '3500k',
+    '-bufsize', '7000k',
     '-c:a', 'aac',
     '-b:a', '128k',
     '-f', 'flv',
@@ -52,6 +53,8 @@ command = [
 ]
 
 print("\n🎥 SSH101.com yayını başlatılıyor...")
+print("📐 Çözünürlük: 1080p (1920x1080) @ 25 FPS")
+print("⚡ Bitrate (KMPS): 3500 kbps")
 print("🖼️  Logo: Sağ üst")
 print("📝 Alt yazı: t.me/digitaltivi")
 print("⏸️  Durdurmak için: Ctrl + C\n")
