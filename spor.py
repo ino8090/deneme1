@@ -111,15 +111,15 @@ def start_live_relay():
             '-map', '[v]',
             '-map', '0:a?',
             
-            # Video Kodlama
+            # Video Kodlama (Bitrate: 2000k olarak ayarlandı)
             '-c:v', 'libx264',
             '-preset', 'superfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '3000k',
-            '-maxrate', '3000k',
-            '-bufsize', '6000k',
-            '-g', '50',  # 2 saniyede bir Keyframe (RTMP kopmalarını engeller)
+            '-b:v', '2000k',
+            '-maxrate', '2000k',
+            '-bufsize', '4000k',
+            '-g', '50',
             
             # Ses Kodlama
             '-c:a', 'aac',
