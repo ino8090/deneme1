@@ -8,7 +8,7 @@ STREAM_KEY = "b.1"
 rtmp_server = f"{RTMP_URL}/{STREAM_KEY}"
 
 # ===================== YAYIN AYARLARI =====================
-VIDEO_URL = "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F267105889a25a483e5e80"
+VIDEO_URL = "https://vuvuu.enesgonullu2009-356.workers.dev/?url=https%3A%2F%2Fkool.to%2Fkool-iptv%2Fplay%2F24034250314fd9aa349685"
 LOGO_URL = "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
 
 print("=" * 50)
@@ -36,7 +36,7 @@ command = [
     '-filter_complex',
     '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black[v0];'
     '[1:v]scale=-1:133[logo];'
-    '[v0][logo]overlay=W-w-65:31[v1];'
+    '[v0][logo]overlay=W-w-70:28[v1];'
     '[v1]drawtext=text=:fontcolor=white:fontsize=28:box=1:boxcolor=black@0.6:boxborderw=5:x=(w-text_w)/2:y=h-text_h-20[v]',
     '-map', '[v]',
     '-map', '0:a?',
