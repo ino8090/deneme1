@@ -4,12 +4,12 @@ import time
 
 # ===================== SSH101.com AYARLARI =====================
 RTMP_URL = "rtmp://ssh101.bozztv.com:1935/ssh101"
-STREAM_KEY = "b.1"
+STREAM_KEY = "maxdizi"
 rtmp_server = f"{RTMP_URL}/{STREAM_KEY}"
 
 # ===================== YAYIN AYARLARI =====================
 VIDEO_URL = "http://45.158.14.16/m3u/baba120.php?p=/live.m3u8&raw=1"
-LOGO_URL = "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1788625175420.png"
+LOGO_URL = "https://raw.githubusercontent.com/ino8090/0101/refs/heads/main/1791047356035.png"
 
 print("=" * 50)
 print("📺 SSH101.com Yayın Başlatılıyor")
