@@ -256,7 +256,7 @@ def start_m3u_stream():
 
         write_title_file(film_title)
 
-        # 🚀 KRİTİK ADIM: M3U8 Master akışı içindeki EN YÜKSEK KALİTE (1080p) linkini çekiyoruz
+        # M3U8 Master akışı içindeki EN YÜKSEK KALİTE (1080p) linkini çekiyoruz
         real_stream_url = get_highest_quality_hls_link(target_stream_url)
 
         probe_url = real_stream_url.split(";")[0].strip() if ";" in real_stream_url else real_stream_url
@@ -355,9 +355,9 @@ def start_m3u_stream():
             '-preset', 'veryfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '3500k',
-            '-maxrate', '3500k',
-            '-bufsize', '5000k',
+            '-b:v', '2500k',            # Video Bitrate: 2500k
+            '-maxrate', '2500k',        # Maksimum Bitrate: 2500k
+            '-bufsize', '3500k',        # Tampon Boyutu: 3500k
             '-g', '50',
             '-c:a', 'aac',
             '-b:a', '128k',
@@ -367,7 +367,7 @@ def start_m3u_stream():
             RTMP_SERVER
         ]
 
-        print("▶ FFmpeg Gerçek 1080p Kaynak İle Başlatıldı...")
+        print("▶ FFmpeg 2500k Bitrate İle Başlatıldı...")
 
         process = subprocess.Popen(
             command,
