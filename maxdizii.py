@@ -43,32 +43,23 @@ def format_hms(total_seconds):
 
 
 def get_highest_quality_hls_link(url):
-    """
-    Eğer link bir Master M3U8 ise, içindeki kalite seçeneklerini ayrıştırır 
-    ve en yüksek çözünürlüğe (1080p > 720p > 480p) sahip doğrudan video linkini çeker.
-    """
     if not url.endswith('.m3u8') and '.m3u8?' not in url:
         return url
 
     try:
         headers = {'User-Agent': STREAM_USER_AGENT, 'Referer': STREAM_REFERER}
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=5)
         if res.status_code == 200 and '#EXTM3U' in res.text:
             lines = res.text.splitlines()
             best_url = None
             max_bandwidth = 0
-
             base_url = url.rsplit('/', 1)[0] + '/'
 
             for i, line in enumerate(lines):
                 if line.startswith('#EXT-X-STREAM-INF'):
-                    # Bandwidth veya Resolution bilgisini bul
                     bw_match = re.search(r'BANDWIDTH=(\d+)', line)
-                    res_match = re.search(r'RESOLUTION=(\d+x\d+)', line)
-                    
                     bw = int(bw_match.group(1)) if bw_match else 0
 
-                    # Sonraki satır linktir
                     if i + 1 < len(lines):
                         sub_url = lines[i + 1].strip()
                         if not sub_url.startswith('http'):
@@ -79,10 +70,9 @@ def get_highest_quality_hls_link(url):
                             best_url = sub_url
 
             if best_url:
-                print(f"🎯 M3U8 Master Playlist İçinden En Yüksek Kaliteli (1080p/Max) Link Seçildi!")
                 return best_url
     except Exception as e:
-        print(f"⚠️ HLS Kalite ayrıştırma hatası, orijinal link kullanılacak: {e}")
+        print(f"⚠️ HLS Kalite ayrıştırma hatası: {e}")
 
     return url
 
@@ -92,8 +82,8 @@ def get_video_duration_ffprobe(video_url):
         'ffprobe',
         '-v', 'error',
         '-allowed_extensions', 'ALL',
-        '-analyzeduration', '20000000',
-        '-probesize', '20000000',
+        '-analyzeduration', '10000000',
+        '-probesize', '10000000',
         '-select_streams', 'v:0',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -101,7 +91,7 @@ def get_video_duration_ffprobe(video_url):
         video_url
     ]
     try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=15).decode('utf-8').strip()
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=8).decode('utf-8').strip()
         duration = float(output)
         if duration > 0:
             return duration
@@ -140,7 +130,7 @@ def update_local_state(index, seconds, url="", title=""):
 def get_m3u_playlist(m3u_url):
     try:
         headers = {'User-Agent': STREAM_USER_AGENT, 'Referer': STREAM_REFERER}
-        response = requests.get(m3u_url, headers=headers, timeout=15)
+        response = requests.get(m3u_url, headers=headers, timeout=10)
         if response.status_code == 200:
             lines = response.text.splitlines()
             playlist = []
@@ -165,7 +155,7 @@ def get_m3u_playlist(m3u_url):
 def download_logo():
     headers = {'User-Agent': STREAM_USER_AGENT}
     try:
-        response = requests.get(LOGO_URL, headers=headers, timeout=15)
+        response = requests.get(LOGO_URL, headers=headers, timeout=10)
         if response.status_code == 200 and len(response.content) > 0:
             with open('logo.png', 'wb') as f:
                 f.write(response.content)
@@ -227,12 +217,11 @@ def start_m3u_stream():
 
     consecutive_fast_failures = 0
     FAST_FAIL_THRESHOLD_SECONDS = 20
-    MAX_RETRY_DELAY_SECONDS = 120
 
     while True:
         playlist = get_m3u_playlist(M3U_URL)
         if not playlist:
-            time.sleep(10)
+            time.sleep(2)
             continue
 
         if current_index >= len(playlist):
@@ -256,7 +245,7 @@ def start_m3u_stream():
 
         write_title_file(film_title)
 
-        # M3U8 Master akışı içindeki EN YÜKSEK KALİTE (1080p) linkini çekiyoruz
+        # En yüksek kalite HLS adresi
         real_stream_url = get_highest_quality_hls_link(target_stream_url)
 
         probe_url = real_stream_url.split(";")[0].strip() if ";" in real_stream_url else real_stream_url
@@ -267,7 +256,7 @@ def start_m3u_stream():
 
         print("=" * 60)
         print(f"📺 Oynatılan Film: {film_title}")
-        print("🚀 Gerçek 1080p Kaynak Çekilerek Yayın Başlatılıyor...")
+        print("⚡ Yıldırım Hızında Bağlantı Kuruluyor...")
 
         headers_arg = (
             f"User-Agent: {STREAM_USER_AGENT}\r\n"
@@ -275,22 +264,23 @@ def start_m3u_stream():
             f"Origin: https://vidmody.com\r\n"
         )
 
+        # Hızlı başlatma ve minimal gecikme parametreleri eklendi
         input_options = [
             '-re',
             '-headers', headers_arg,
             '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
             '-err_detect', 'ignore_err',
-            '-fflags', '+genpts+discardcorrupt',
+            '-fflags', '+genpts+discardcorrupt+fastseek+nobuffer',
             '-allowed_extensions', 'ALL',
-            '-thread_queue_size', '2048',
+            '-thread_queue_size', '1024',
             '-max_interleave_delta', '0',
-            '-analyzeduration', '20000000',
-            '-probesize', '20000000',
+            '-analyzeduration', '5000000',
+            '-probesize', '5000000',
             '-reconnect', '1',
             '-reconnect_at_eof', '1',
             '-reconnect_streamed', '1',
-            '-reconnect_delay_max', '10',
-            '-rw_timeout', '10000000',
+            '-reconnect_delay_max', '2',
+            '-rw_timeout', '5000000',
             '-threads', DECODER_THREADS,
         ]
 
@@ -352,22 +342,22 @@ def start_m3u_stream():
             '-map', '[v]',
             '-map', '1:a:0?' if ";" in real_stream_url else '0:a:0?',
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',       # En hızlı geçiş ve sıfır yükleme süresi için
+            '-tune', 'zerolatency',       # Anlık aktarım için gecikmeyi sıfırlama
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '2500k',            # Video Bitrate: 2500k
-            '-maxrate', '2500k',        # Maksimum Bitrate: 2500k
-            '-bufsize', '3500k',        # Tampon Boyutu: 3500k
+            '-b:v', '2500k',
+            '-maxrate', '2500k',
+            '-bufsize', '2500k',
             '-g', '50',
             '-c:a', 'aac',
             '-b:a', '128k',
             '-ac', '2',
             '-ar', '44100',
+            '-flvflags', 'no_duration_filesize', # RTMP paketlerini bekletmeden anında yolla
             '-f', 'flv',
             RTMP_SERVER
         ]
-
-        print("▶ FFmpeg 2500k Bitrate İle Başlatıldı...")
 
         process = subprocess.Popen(
             command,
@@ -383,9 +373,9 @@ def start_m3u_stream():
 
         def _watchdog(proc=process, progress_ref=last_progress_time):
             while proc.poll() is None:
-                time.sleep(5)
+                time.sleep(3)
                 if time.time() - progress_ref[0] > WATCHDOG_TIMEOUT_SECONDS:
-                    print(f"🚨 Watchdog: İlerleme durdu. Yeniden başlatılıyor.")
+                    print(f"🚨 Watchdog: İlerleme durdu. Hızlıca yeniden başlatılıyor.")
                     try:
                         proc.kill()
                     except Exception:
@@ -429,15 +419,17 @@ def start_m3u_stream():
                         last_dashboard_time = now
 
         if process.returncode == 0:
-            print("✅ İçerik bitti, sıradakine geçiliyor.")
+            print("⚡ Film bitti, anında sonraki filme geçiliyor...")
             current_index += 1
             last_seconds = 0
             last_url = ""
             last_title = ""
             update_local_state(current_index, 0, "", "")
             consecutive_fast_failures = 0
+            # Bekleme süresi 0 yapıldı, sıradaki filme anında bağlanacak
+            time.sleep(0.1)
         else:
-            print(f"⚠️ Yayın koptu (Return Code: {process.returncode}). Tekrar denenecek.")
+            print(f"⚠️ Yayın koptu (Return Code: {process.returncode}). Yeniden deneniyor...")
             duration_this_attempt = current_stream_seconds - last_seconds
             if duration_this_attempt < FAST_FAIL_THRESHOLD_SECONDS:
                 consecutive_fast_failures += 1
@@ -451,13 +443,12 @@ def start_m3u_stream():
                 last_title = ""
                 consecutive_fast_failures = 0
                 update_local_state(current_index, 0, "", "")
+                time.sleep(0.5)
             else:
                 last_seconds = current_stream_seconds
                 last_url = target_stream_url
                 update_local_state(current_index, last_seconds, last_url, film_title)
-
-        retry_delay = min(5 * (2 ** consecutive_fast_failures), MAX_RETRY_DELAY_SECONDS) if consecutive_fast_failures > 0 else 5
-        time.sleep(retry_delay)
+                time.sleep(0.5)
 
 
 if __name__ == "__main__":
