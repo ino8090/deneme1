@@ -52,7 +52,6 @@ def format_hms(total_seconds):
 def get_video_duration_ffprobe(video_url):
     """
     FFprobe ile videonun GERÇEK toplam süresini çeker.
-    M3U8 ve HLS akışlarını doğru okuyabilmek için ekstra analiz parametreleri içerir.
     """
     cmd = [
         'ffprobe',
@@ -70,7 +69,7 @@ def get_video_duration_ffprobe(video_url):
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=15).decode('utf-8').strip()
         duration = float(output)
         if duration > 0:
-            print(f"⏱️ ffprobe ile toplam süre tespit edildi: {duration:.1f} saniye ({format_hms(duration)})")
+            print(f"⏱️️ ffprobe ile toplam süre tespit edildi: {duration:.1f} saniye ({format_hms(duration)})")
             return duration
     except Exception as e:
         print(f"⚠️ ffprobe ile süre okunamadı (Canlı yayın veya kısıtlı medya olabilir): {e}")
@@ -156,7 +155,6 @@ def download_logo():
 
 
 def write_title_file(title):
-    """Şu an oynayan içeriğin adını yazar."""
     try:
         with open('title.txt', 'w', encoding='utf-8') as f:
             f.write(title)
@@ -165,10 +163,6 @@ def write_title_file(title):
 
 
 def write_remaining_time_file(remaining_seconds):
-    """
-    Kalan süreyi 'time.txt' dosyasına dinamik olarak yazar.
-    FFmpeg drawtext bu dosyayı anlık reload=1 ile okuyacaktır.
-    """
     try:
         formatted = format_hms(remaining_seconds)
         with open('time.txt', 'w', encoding='utf-8') as f:
@@ -211,7 +205,6 @@ def start_m3u_stream():
     print(f"🔧 Kullanılan Logo  : {LOGO_URL}")
     print(f"🔧 State dosyası    : {STATE_FILE_NAME}")
     print(f"🔧 RTMP hedefi      : {RTMP_SERVER}")
-    print(f"🔧 Decoder thread   : {DECODER_THREADS}")
 
     download_logo()
 
@@ -253,20 +246,16 @@ def start_m3u_stream():
 
         write_title_file(film_title)
 
-        # Videonun Gerçek Toplam Süresini Al
         probe_url = target_stream_url.split(";")[0].strip() if ";" in target_stream_url else target_stream_url
         total_duration_sec = get_video_duration_ffprobe(probe_url)
 
-        # İlk kalan süreyi dosyaya yaz
         initial_remaining = max(0, total_duration_sec - last_seconds) if total_duration_sec > 0 else 0
         write_remaining_time_file(initial_remaining)
 
         print("=" * 60)
-        print("📺 Maxanimasyon Canlı Aktarım Yayını (1080p 25fps - 2500k) Başlatılıyor")
+        print("📺 Maxanimasyon Canlı Aktarım Yayını (1080p Giriş & Çıkış Kilitli)")
         print(f"🎬 Oynatılan İçerik  : {film_title}")
         print(f"⏱️ Başlangıç Saniyesi: {last_seconds}")
-        print(f"⏱️ Toplam Süre      : {format_hms(total_duration_sec) if total_duration_sec > 0 else 'Bilinmiyor'}")
-        print(f"🚀 Hedef RTMP       : {RTMP_SERVER}")
 
         headers_arg = (
             f"User-Agent: {STREAM_USER_AGENT}\r\n"
@@ -274,12 +263,17 @@ def start_m3u_stream():
             f"Origin: https://vidmody.com\r\n"
         )
 
+        # HLS / M3U8 GİRİŞİNİ DOĞRUDAN EN YÜKSEK / 1080P KANALA ZORLAYAN PARAMETRELER:
         input_options = [
             '-re',
             '-headers', headers_arg,
             '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
             '-err_detect', 'ignore_err',
             '-fflags', '+genpts+discardcorrupt',
+            '-allowed_extensions', 'ALL',
+            # M3U8 Master playlist içinden doğrudan en yüksek bitrate/çözünürlüğü seçtirir:
+            '-max_reload', '100',
+            '-m3u8_hold_counters', '100',
             '-thread_queue_size', '1024',
             '-max_interleave_delta', '0',
             '-analyzeduration', '10000000',
@@ -303,13 +297,13 @@ def start_m3u_stream():
                 input_options + seek_args + ['-i', video_url] +
                 input_options + seek_args + ['-i', audio_url]
             )
-            audio_map = ['-map', '1:a:0?']
-            video_map_arg = ['-map', '0:v:m:bandwidth:m?']  # En yüksek bandwidth akışını seç, yoksa varsayılan
+            # En yüksek çözünürlüklü video akışını haritala (0:v:best veya 0:v:0)
+            stream_maps = ['-map', '0:v:0', '-map', '1:a:0?']
             logo1_input_index = 2
         else:
             input_args = input_options + seek_args + ['-i', target_stream_url]
-            audio_map = ['-map', '0:a:0?']
-            video_map_arg = ['-map', '0:v:m:bandwidth:m?']  # En yüksek bandwidth akışını seç, yoksa varsayılan
+            # En yüksek bitrate/çözünürlüklü video kanalını seçer
+            stream_maps = ['-map', '0:v:0', '-map', '0:a:0?']
             logo1_input_index = 1
 
         print_dashboard(film_title, current_index, len(playlist), last_seconds, status="🟡 Başlatılıyor")
@@ -317,25 +311,23 @@ def start_m3u_stream():
 
         has_logo1 = os.path.exists('logo.png') and os.path.getsize('logo.png') > 0
 
-        # Sağ Alt Köşe: Film Adı
         title_drawtext = (
             f"drawtext=textfile='title.txt':reload=1:fontfile='{BOLD_FONT_PATH}':"
             f"fontcolor=white@{TEXT_OPACITY}:fontsize=19:"
             f"x=w-tw-20:y=h-th-20"
         )
 
-        # Sol Alt Köşe: GERÇEK KALAN SÜRE (time.txt dosyasından anlık dinamik okunur)
         time_drawtext = (
             f"drawtext=textfile='time.txt':reload=1:fontfile='{BOLD_FONT_PATH}':"
             f"fontcolor=white@{TEXT_OPACITY}:fontsize=18:"
             f"x=20:y=h-th-20"
         )
 
-        # 16:9 Ekran Oranına zorlama için 'scale=1920:1080,setdar=16/9,fps=25'
+        # Giriş gelen kaynak ne olursa olsun tam 1920x1080 ölçeğine zorlayıp sabitler
         if has_logo1:
             logo_inputs = ['-i', 'logo.png']
             filter_str = (
-                '[0:v]scale=1920:1080,setdar=16/9,fps=25[main];'
+                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=25[main];'
                 f'[{logo1_input_index}:v]scale=-2:85,format=rgba,'
                 f'colorchannelmixer=aa={LOGO_OPACITY}[logo1];'
                 '[main][logo1]overlay=50:50[tmp1];'
@@ -345,7 +337,7 @@ def start_m3u_stream():
         else:
             logo_inputs = []
             filter_str = (
-                '[0:v]scale=1920:1080,setdar=16/9,fps=25[main];'
+                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=25[main];'
                 f'[main]{title_drawtext}[tmp2];'
                 f'[tmp2]{time_drawtext}[v]'
             )
@@ -354,15 +346,15 @@ def start_m3u_stream():
             'ffmpeg'
         ] + input_args + logo_inputs + [
             '-filter_complex', filter_str,
-            '-map', '[v]'
-        ] + audio_map + [
+            '-map', '[v]',
+            '-map', stream_maps[2] if len(stream_maps) > 2 else stream_maps[1],
             '-c:v', 'libx264',
             '-preset', 'veryfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '2500k',
-            '-maxrate', '2500k',
-            '-bufsize', '3000k',
+            '-b:v', '3000k',
+            '-maxrate', '3000k',
+            '-bufsize', '4000k',
             '-g', '50',
             '-c:a', 'aac',
             '-b:a', '128k',
@@ -372,7 +364,7 @@ def start_m3u_stream():
             RTMP_SERVER
         ]
 
-        print("▶ FFmpeg başlatıldı, 1080p 25fps @ 2500k yayın iletiliyor...")
+        print("▶ FFmpeg 1080p kaynak zorlamasıyla başlatıldı...")
 
         process = subprocess.Popen(
             command,
@@ -416,12 +408,10 @@ def start_m3u_stream():
                     played_seconds = int(hrs) * 3600 + int(mins) * 60 + float(secs)
                     current_stream_seconds = last_seconds + played_seconds
 
-                    # Her kare ilerlemesinde KALAN SÜREYİ 'time.txt' dosyasına yaz
                     if total_duration_sec > 0:
                         remaining_seconds = max(0, total_duration_sec - current_stream_seconds)
                         write_remaining_time_file(remaining_seconds)
                     else:
-                        # Eğer ffprobe toplam süreyi çekemediyse geçen süreyi gösterir
                         write_remaining_time_file(current_stream_seconds)
 
                     now = time.time()
@@ -446,17 +436,7 @@ def start_m3u_stream():
             update_local_state(current_index, 0, "", "")
             consecutive_fast_failures = 0
         else:
-            if process.returncode == -6:
-                print("⚠️ FFmpeg SIGABRT ile çöktü.")
-            elif process.returncode == -9:
-                print("⚠️ FFmpeg watchdog tarafından donma nedeniyle sonlandırıldı.")
             print(f"⚠️ Yayın koptu (Return Code: {process.returncode}). Aynı saniyeden tekrar denenecek.")
-            if stderr_tail:
-                print("🧾 FFmpeg son log satırları:")
-                for tail_line in stderr_tail:
-                    print(f"   {tail_line}")
-            write_step_summary(film_title, current_index, len(playlist), current_stream_seconds, status="🔴 Bağlantı koptu, tekrar denenecek")
-
             duration_this_attempt = current_stream_seconds - last_seconds
             if duration_this_attempt < FAST_FAIL_THRESHOLD_SECONDS:
                 consecutive_fast_failures += 1
@@ -476,11 +456,7 @@ def start_m3u_stream():
                 last_url = target_stream_url
                 update_local_state(current_index, last_seconds, last_url, film_title)
 
-        if consecutive_fast_failures > 0:
-            retry_delay = min(5 * (2 ** consecutive_fast_failures), MAX_RETRY_DELAY_SECONDS)
-        else:
-            retry_delay = 5
-
+        retry_delay = min(5 * (2 ** consecutive_fast_failures), MAX_RETRY_DELAY_SECONDS) if consecutive_fast_failures > 0 else 5
         print(f"⚠️ {retry_delay} saniye sonra tekrar bağlanılıyor...")
         time.sleep(retry_delay)
 
