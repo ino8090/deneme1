@@ -53,15 +53,14 @@ def get_video_duration_ffprobe(video_url):
     """
     FFprobe ile videonun GERÇEK toplam süresini çeker.
     M3U8 ve HLS akışlarını doğru okuyabilmek için ekstra analiz parametreleri içerir.
-    En yüksek kalitedeki varyantı okumaya zorlanır.
     """
     cmd = [
         'ffprobe',
         '-v', 'error',
         '-allowed_extensions', 'ALL',
-        '-variant_index', '99999',  # En yüksek bant genişlikli akışı oku
         '-analyzeduration', '20000000',
         '-probesize', '20000000',
+        '-select_streams', 'v:0',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         '-headers', f"User-Agent: {STREAM_USER_AGENT}\r\nReferer: {STREAM_REFERER}\r\n",
@@ -279,7 +278,6 @@ def start_m3u_stream():
             '-re',
             '-headers', headers_arg,
             '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
-            '-variant_index', '99999',  # Master playlist'teki en yüksek kaliteli (bandwidth) stream'i seçmeye zorlar
             '-err_detect', 'ignore_err',
             '-fflags', '+genpts+discardcorrupt',
             '-thread_queue_size', '1024',
@@ -306,10 +304,12 @@ def start_m3u_stream():
                 input_options + seek_args + ['-i', audio_url]
             )
             audio_map = ['-map', '1:a:0?']
+            video_map_arg = ['-map', '0:v:m:bandwidth:m?']  # En yüksek bandwidth akışını seç, yoksa varsayılan
             logo1_input_index = 2
         else:
             input_args = input_options + seek_args + ['-i', target_stream_url]
             audio_map = ['-map', '0:a:0?']
+            video_map_arg = ['-map', '0:v:m:bandwidth:m?']  # En yüksek bandwidth akışını seç, yoksa varsayılan
             logo1_input_index = 1
 
         print_dashboard(film_title, current_index, len(playlist), last_seconds, status="🟡 Başlatılıyor")
@@ -331,7 +331,7 @@ def start_m3u_stream():
             f"x=20:y=h-th-20"
         )
 
-        # 16:9 Ekran Oranına kesin zorlama için 'scale=1920:1080,setdar=16/9,fps=25' kullanılmıştır.
+        # 16:9 Ekran Oranına zorlama için 'scale=1920:1080,setdar=16/9,fps=25'
         if has_logo1:
             logo_inputs = ['-i', 'logo.png']
             filter_str = (
