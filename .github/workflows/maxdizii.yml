@@ -34,7 +34,7 @@ jobs:
     - name: 📥 Kayıtlı State Dosyasını İndir
       continue-on-error: true
       run: |
-        curl -sL https://github.com/${{ github.repository }}/releases/download/state-data/state_maxdizii.json -o state_maxdizii.json
+        curl -sL https://github.com/${{ github.repository }}/releases/download/state-data/state_maxdizi.json -o state_maxdizi.json
 
     - name: 🚀 Yayını başlat
       env:
