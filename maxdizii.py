@@ -25,7 +25,6 @@ GITHUB_STEP_SUMMARY = os.getenv("GITHUB_STEP_SUMMARY")
 STREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 STREAM_REFERER = "https://vidmody.com/"
 
-# Logo ve yazı opaklık ayarları (0.0 - 1.0 arası)
 LOGO_OPACITY = float(os.getenv("LOGO_OPACITY", "1.0"))
 TEXT_OPACITY = float(os.getenv("TEXT_OPACITY", "1.0"))
 BOLD_FONT_PATH = os.getenv("BOLD_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
@@ -41,6 +40,51 @@ def format_hms(total_seconds):
     mins = (total_seconds % 3600) // 60
     secs = total_seconds % 60
     return f"{hrs:02d}:{mins:02d}:{secs:02d}"
+
+
+def get_highest_quality_hls_link(url):
+    """
+    Eğer link bir Master M3U8 ise, içindeki kalite seçeneklerini ayrıştırır 
+    ve en yüksek çözünürlüğe (1080p > 720p > 480p) sahip doğrudan video linkini çeker.
+    """
+    if not url.endswith('.m3u8') and '.m3u8?' not in url:
+        return url
+
+    try:
+        headers = {'User-Agent': STREAM_USER_AGENT, 'Referer': STREAM_REFERER}
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200 and '#EXTM3U' in res.text:
+            lines = res.text.splitlines()
+            best_url = None
+            max_bandwidth = 0
+
+            base_url = url.rsplit('/', 1)[0] + '/'
+
+            for i, line in enumerate(lines):
+                if line.startswith('#EXT-X-STREAM-INF'):
+                    # Bandwidth veya Resolution bilgisini bul
+                    bw_match = re.search(r'BANDWIDTH=(\d+)', line)
+                    res_match = re.search(r'RESOLUTION=(\d+x\d+)', line)
+                    
+                    bw = int(bw_match.group(1)) if bw_match else 0
+
+                    # Sonraki satır linktir
+                    if i + 1 < len(lines):
+                        sub_url = lines[i + 1].strip()
+                        if not sub_url.startswith('http'):
+                            sub_url = base_url + sub_url
+
+                        if bw > max_bandwidth:
+                            max_bandwidth = bw
+                            best_url = sub_url
+
+            if best_url:
+                print(f"🎯 M3U8 Master Playlist İçinden En Yüksek Kaliteli (1080p/Max) Link Seçildi!")
+                return best_url
+    except Exception as e:
+        print(f"⚠️ HLS Kalite ayrıştırma hatası, orijinal link kullanılacak: {e}")
+
+    return url
 
 
 def get_video_duration_ffprobe(video_url):
@@ -60,7 +104,6 @@ def get_video_duration_ffprobe(video_url):
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=15).decode('utf-8').strip()
         duration = float(output)
         if duration > 0:
-            print(f"⏱️ ffprobe ile toplam süre tespit edildi: {duration:.1f} saniye ({format_hms(duration)})")
             return duration
     except Exception as e:
         print(f"⚠️ ffprobe ile süre okunamadı: {e}")
@@ -145,7 +188,7 @@ def write_remaining_time_file(remaining_seconds):
         with open('time.txt', 'w', encoding='utf-8') as f:
             f.write(formatted)
     except Exception as e:
-        print(f"⚠️️ Kalan süre dosyası yazma hatası: {e}")
+        print(f"⚠️ Kalan süre dosyası yazma hatası: {e}")
 
 
 def print_dashboard(title, index, playlist_len, seconds, status="🟢 Yayında"):
@@ -213,14 +256,18 @@ def start_m3u_stream():
 
         write_title_file(film_title)
 
-        probe_url = target_stream_url.split(";")[0].strip() if ";" in target_stream_url else target_stream_url
+        # 🚀 KRİTİK ADIM: M3U8 Master akışı içindeki EN YÜKSEK KALİTE (1080p) linkini çekiyoruz
+        real_stream_url = get_highest_quality_hls_link(target_stream_url)
+
+        probe_url = real_stream_url.split(";")[0].strip() if ";" in real_stream_url else real_stream_url
         total_duration_sec = get_video_duration_ffprobe(probe_url)
 
         initial_remaining = max(0, total_duration_sec - last_seconds) if total_duration_sec > 0 else 0
         write_remaining_time_file(initial_remaining)
 
         print("=" * 60)
-        print("📺 Yüksek Kalite 1080p 16:9 Canlı Yayın Başlatılıyor")
+        print(f"📺 Oynatılan Film: {film_title}")
+        print("🚀 Gerçek 1080p Kaynak Çekilerek Yayın Başlatılıyor...")
 
         headers_arg = (
             f"User-Agent: {STREAM_USER_AGENT}\r\n"
@@ -249,8 +296,8 @@ def start_m3u_stream():
 
         seek_args = ['-ss', str(last_seconds)] if last_seconds > 0 else []
 
-        if ";" in target_stream_url:
-            video_url, audio_url = target_stream_url.split(";", 1)
+        if ";" in real_stream_url:
+            video_url, audio_url = real_stream_url.split(";", 1)
             video_url = video_url.strip()
             audio_url = audio_url.strip()
 
@@ -260,7 +307,7 @@ def start_m3u_stream():
             )
             logo1_input_index = 2
         else:
-            input_args = input_options + seek_args + ['-i', target_stream_url]
+            input_args = input_options + seek_args + ['-i', real_stream_url]
             logo1_input_index = 1
 
         print_dashboard(film_title, current_index, len(playlist), last_seconds, status="🟡 Başlatılıyor")
@@ -280,14 +327,10 @@ def start_m3u_stream():
             f"x=20:y=h-th-20"
         )
 
-        # 16:9 Ekran Boyutunu Tam Kaplama + Kalite Keskinleştirme Filtreleri
-        # scale=1920:1080:flags=bicubic -> Resmi tam 1920x1080 boyutuna net ölçekler
-        # setdar=16/9 -> Ekran görüntü oranını kesin olarak 16:9 yapar
-        # unsharp=5:5:1.0:5:5:0.0 -> Bulanık görüntüleri keskinleştirir
         if has_logo1:
             logo_inputs = ['-i', 'logo.png']
             filter_str = (
-                '[0:v]scale=1920:1080:flags=bicubic,setdar=16/9,unsharp=5:5:0.8:5:5:0.0,fps=25[main];'
+                '[0:v]scale=1920:1080:flags=bicubic,setdar=16/9,fps=25[main];'
                 f'[{logo1_input_index}:v]scale=-2:85,format=rgba,'
                 f'colorchannelmixer=aa={LOGO_OPACITY}[logo1];'
                 '[main][logo1]overlay=50:50[tmp1];'
@@ -297,7 +340,7 @@ def start_m3u_stream():
         else:
             logo_inputs = []
             filter_str = (
-                '[0:v]scale=1920:1080:flags=bicubic,setdar=16/9,unsharp=5:5:0.8:5:5:0.0,fps=25[main];'
+                '[0:v]scale=1920:1080:flags=bicubic,setdar=16/9,fps=25[main];'
                 f'[main]{title_drawtext}[tmp2];'
                 f'[tmp2]{time_drawtext}[v]'
             )
@@ -307,24 +350,24 @@ def start_m3u_stream():
         ] + input_args + logo_inputs + [
             '-filter_complex', filter_str,
             '-map', '[v]',
-            '-map', '1:a:0?' if ";" in target_stream_url else '0:a:0?',
+            '-map', '1:a:0?' if ";" in real_stream_url else '0:a:0?',
             '-c:v', 'libx264',
-            '-preset', 'medium',        # Yüksek kalite kodlama
+            '-preset', 'veryfast',
             '-pix_fmt', 'yuv420p',
             '-r', '25',
-            '-b:v', '4500k',            # Kaliteli 1080p için ideal bitrate
-            '-maxrate', '4500k',
-            '-bufsize', '6000k',
+            '-b:v', '3500k',
+            '-maxrate', '3500k',
+            '-bufsize', '5000k',
             '-g', '50',
             '-c:a', 'aac',
-            '-b:a', '160k',
+            '-b:a', '128k',
             '-ac', '2',
             '-ar', '44100',
             '-f', 'flv',
             RTMP_SERVER
         ]
 
-        print("▶ FFmpeg 1080p Full HD (16:9) yüksek kalite modunda çalıştırılıyor...")
+        print("▶ FFmpeg Gerçek 1080p Kaynak İle Başlatıldı...")
 
         process = subprocess.Popen(
             command,
