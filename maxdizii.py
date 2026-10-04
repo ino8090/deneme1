@@ -53,11 +53,13 @@ def get_video_duration_ffprobe(video_url):
     """
     FFprobe ile videonun GERÇEK toplam süresini çeker.
     M3U8 ve HLS akışlarını doğru okuyabilmek için ekstra analiz parametreleri içerir.
+    En yüksek kalitedeki varyantı okumaya zorlanır.
     """
     cmd = [
         'ffprobe',
         '-v', 'error',
         '-allowed_extensions', 'ALL',
+        '-variant_index', '99999',  # En yüksek bant genişlikli akışı oku
         '-analyzeduration', '20000000',
         '-probesize', '20000000',
         '-show_entries', 'format=duration',
@@ -277,6 +279,7 @@ def start_m3u_stream():
             '-re',
             '-headers', headers_arg,
             '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+            '-variant_index', '99999',  # Master playlist'teki en yüksek kaliteli (bandwidth) stream'i seçmeye zorlar
             '-err_detect', 'ignore_err',
             '-fflags', '+genpts+discardcorrupt',
             '-thread_queue_size', '1024',
@@ -328,11 +331,11 @@ def start_m3u_stream():
             f"x=20:y=h-th-20"
         )
 
+        # 16:9 Ekran Oranına kesin zorlama için 'scale=1920:1080,setdar=16/9,fps=25' kullanılmıştır.
         if has_logo1:
             logo_inputs = ['-i', 'logo.png']
             filter_str = (
-                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,'
-                'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[main];'
+                '[0:v]scale=1920:1080,setdar=16/9,fps=25[main];'
                 f'[{logo1_input_index}:v]scale=-2:85,format=rgba,'
                 f'colorchannelmixer=aa={LOGO_OPACITY}[logo1];'
                 '[main][logo1]overlay=50:50[tmp1];'
@@ -342,8 +345,7 @@ def start_m3u_stream():
         else:
             logo_inputs = []
             filter_str = (
-                '[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,'
-                'pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=25[main];'
+                '[0:v]scale=1920:1080,setdar=16/9,fps=25[main];'
                 f'[main]{title_drawtext}[tmp2];'
                 f'[tmp2]{time_drawtext}[v]'
             )
